@@ -4,6 +4,8 @@ import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 
+/////////////////////////////////////Create Invoice /////////////////////
+
 const FormSchema = z.object({
   id: z.string(),
   customerId: z.string({
@@ -30,9 +32,9 @@ export type State = {
 export async function createInvoice(prevState: State, formData: FormData) {
   // Validate form using Zod
   const validatedFields = CreateInvoice.safeParse({
-    customerId: formData.get('customerId'),
-    amount: formData.get('amount'),
-    status: formData.get('status'),
+    customerId: formData?.get('customerId'),
+    amount: formData?.get('amount'),
+    status: formData?.get('status'),
   });
  
   // If form validation fails, return errors early. Otherwise, continue.
@@ -65,35 +67,54 @@ export async function createInvoice(prevState: State, formData: FormData) {
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
-// Use Zod to update the expected types
+
+
+/////////////////////////////////////Update Invoice /////////////////////
+
+
+// Use Zod to update the expected types same as Create
 const UpdateInvoice = FormSchema.omit({ id: true, date: true });
 
 // ...
 
-export async function updateInvoice(id: string, formData: FormData) {
-  const { customerId, amount, status } = UpdateInvoice.parse({
-    customerId: formData.get('customerId'),
-    amount: formData.get('amount'),
-    status: formData.get('status'),
+export async function updateInvoice(
+  id: string,
+  prevState: State,
+  formData: FormData,
+) {
+  const validatedFields = UpdateInvoice.safeParse({
+    customerId: formData?.get('customerId'),
+    amount: formData?.get('amount'),
+    status: formData?.get('status'),
   });
-
-  const amountInCents = amount * 100;
-
-  try {
-    await sql`
-  UPDATE invoices
-  SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
-  WHERE id = ${id}
-`;
-  } catch (error) {
+ 
+  if (!validatedFields.success) {
     return {
-      message: 'Database Error: Failed to Update Invoice.',
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Update Invoice.',
     };
   }
-
+ 
+  const { customerId, amount, status } = validatedFields.data;
+  const amountInCents = amount * 100;
+ 
+  try {
+    await sql`
+      UPDATE invoices
+      SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
+      WHERE id = ${id}
+    `;
+  } catch (error) {
+    return { message: 'Database Error: Failed to Update Invoice.' };
+  }
+ 
   revalidatePath('/dashboard/invoices');
   redirect('/dashboard/invoices');
 }
+
+
+
+/////////////////////////////////////Delete Invoice /////////////////////
 
 export async function deleteInvoice(id: string) {
   try {
